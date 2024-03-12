@@ -1,0 +1,4 @@
+purchased_subscriptions_prod:
+        usecols:
+            - user_id
+            - subscription_id

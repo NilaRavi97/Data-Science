@@ -1,0 +1,80 @@
+def filter_subscription_data(subscription_data_raw: pd.DataFrame,config: dict) -> pd.DataFrame:
+    """preprocess the subscription data obtained from the dynamo db 'purchased_subscriptions_prod' 
+       by filtering the inactive subscriptions and modifying the data in the required format 
+       
+       Args:
+        subscription_data_raw (pd.DataFrame): complete DynamoDB 'purchased_subscriptions_prod'
+
+    Returns:
+        pd.DataFrame: active subscriptions in the required format
+    """
+    #subscription_data_raw['_next_order_day'] = pd.to_datetime(subscription_data_raw['_next_order_day'])
+    
+    #extract the only the rows with active order.
+    #If a subscription has not yet started, e.g. the _next_order_day is 1999-12-31
+    #once a subscription becomes active, _next_order_day becomes a date in the future like 2022-09-11
+    
+    subscription_data_raw = DataSource(
+        subscription_data_raw, config['purchased_subscriptions_prod']).data
+    
+    subscription_data_raw = subscription_data_raw[subscription_data_raw['_next_order_day'].dt.year != 1999]
+    
+    #splitting the address value in one column to Multiple columns
+    Address = subscription_data_raw.address.apply(pd.Series)
+    #splitting the base subscription value in one column to Multiple columns
+    Base_Subscription = subscription_data_raw.base_subscription.apply(pd.Series)
+    
+    #merging all the table into one
+    #merging address and base data into one table
+    Address_base_data = Address.merge(Base_Subscription, left_index=True, right_index=True, how='inner',suffixes=('', '_Base'))
+    #merging Address_base_data and subscription_data_raw into one table
+    subscription_data_merged = subscription_data_raw.merge(Address_base_data, left_index=True, right_index=True, how='inner',suffixes=('', '_Base'))
+    
+    #extracting the required columns after splitting the dict data into individual columns
+    subscription_data_required = subscription_data_merged[["user_id","subscription_code","subscription_id","sku","title","quantity","created_at_Base","updated_at_Base","cancellable_from","is_first_order","_next_order_day","is_cancelled"]]
+    
+    #extracting the date from columns in MM/DD/YYYY format
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['today'] = pd.to_datetime('today').strftime('%m-%d-%Y')
+    
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from'])
+    subscription_data_required['today'] = pd.to_datetime(subscription_data_required['today'])
+    
+    #difference between cancellable from and date of today
+    subscription_data_required['Remanining_Days'] = subscription_data_required.cancellable_from - subscription_data_required.today
+    
+    #extracting the date from columns in MM/DD/YYYY format
+    subscription_data_required['created_at_Base'] = pd.to_datetime(subscription_data_required['created_at_Base']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['updated_at_Base'] = pd.to_datetime(subscription_data_required['updated_at_Base']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['_next_order_day'] = pd.to_datetime(subscription_data_required['_next_order_day']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['Remanining_Days'] = subscription_data_required.Remanining_Days.astype(str).str.replace('00:00:00', '')
+    
+    #dropping the column today
+    subscription_data_required.drop('today', inplace=True, axis=1)
+    
+    return subscription_data_required
+
+
+
+#extracting the date from columns in MM/DD/YYYY format
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['today'] = pd.to_datetime('today').strftime('%m-%d-%Y')
+    
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from'])
+    subscription_data_required['today'] = pd.to_datetime(subscription_data_required['today'])
+    
+    #difference between cancellable from and date of today
+    subscription_data_required['Remanining_Days'] = subscription_data_required.cancellable_from - subscription_data_required.today
+    
+    #extracting the date from columns in MM/DD/YYYY format
+    subscription_data_required['created_at'] = pd.to_datetime(subscription_data_required['created_at']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['updated_at'] = pd.to_datetime(subscription_data_required['updated_at']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['cancellable_from'] = pd.to_datetime(subscription_data_required['cancellable_from']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['_next_order_day'] = pd.to_datetime(subscription_data_required['_next_order_day']).dt.strftime('%m/%d/%Y')
+    subscription_data_required['Remanining_Days'] = subscription_data_required.Remanining_Days.astype(str).str.replace('00:00:00', '')
+    
+    #dropping the column today
+    subscription_data_required.drop('today', inplace=True, axis=1)
+    
+    return subscription_data_required
